@@ -25,6 +25,7 @@ on:
           - A14
           - android16-6.12
           - android15-6.6
+          - OP13-CPH-A15
           - android14-6.1
           - android13-5.15
           - android12-5.10
@@ -150,6 +151,9 @@ jobs:
               ;;
             A15)
               jq_filter="map(select(.os_version == \"A15\"))"
+              ;;
+            OP13-CPH-A15)
+              jq_filter='map(select(.model == "OP13-CPH" and .os_version == "A15"))'
               ;;
             A14)
               jq_filter="map(select(.os_version == \"A14\"))"

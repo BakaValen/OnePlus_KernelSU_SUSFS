@@ -855,6 +855,8 @@ runs:
         }
         
         retry_clone "https://github.com/WildKernels/kernel_patches.git" "main" "1"
+        git -C kernel_patches fetch --depth 1 origin f569cc9e69d6f03a488c391db4cc00db8ead7a59
+        git -C kernel_patches checkout --detach f569cc9e69d6f03a488c391db4cc00db8ead7a59
         
         if [ "${{ env.OP_SUSFS }}" = true ]; then
           echo "Using SUSFS branch/commit: $SUSFS_BRANCH"
@@ -1962,6 +1964,19 @@ runs:
         echo "============================================"
         
         make LD="$COMMON_KERNEL_FOLDER/ld-wrapper" HOSTLD="$COMMON_KERNEL_FOLDER/ld-wrapper" O="$OUT" gki_defconfig
+
+        if [ "$OP_MODEL" = "OP13-CPH" ] && \
+           [ "$OP_OS_VERSION" = "A15" ]; then
+          echo "::group::NetHunter Build 1 config"
+
+          "$COMMON_KERNEL_FOLDER/scripts/kconfig/merge_config.sh" \
+            -m \
+            -O "$OUT" \
+            "$OUT/.config" \
+            "$GITHUB_WORKSPACE/nethunter/op13-build1.config"
+
+          echo "::endgroup::"
+        fi
         
         LOCAL_LOCALVERSION="${CUSTOM_LOCALVERSION:--OP-WILD}"
         if [ -n "${LOCAL_LOCALVERSION:-}" ]; then
@@ -1998,6 +2013,36 @@ runs:
         
         
         make LD="$COMMON_KERNEL_FOLDER/ld-wrapper" HOSTLD="$COMMON_KERNEL_FOLDER/ld-wrapper" O="$OUT" olddefconfig
+
+        if [ "$OP_MODEL" = "OP13-CPH" ] && \
+           [ "$OP_OS_VERSION" = "A15" ]; then
+          echo "::group::Verify NetHunter Build 1 config"
+
+          failed=0
+
+          while IFS= read -r expected; do
+            case "$expected" in
+              ""|\#*)
+                continue
+                ;;
+            esac
+
+            if grep -Fxq "$expected" "$OUT/.config"; then
+              echo "OK: $expected"
+            else
+              echo "::error::Missing after olddefconfig: $expected"
+              failed=1
+            fi
+          done < "$GITHUB_WORKSPACE/nethunter/op13-build1.config"
+
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::NetHunter configuration verification failed"
+            exit 1
+          fi
+
+          echo "All NetHunter Build 1 options survived Kconfig"
+          echo "::endgroup::"
+        fi
         
         KCFLAGS="$KCFLAGS -Wno-error -pipe ${KCFLAGS_EXTRA}"
         KCPPFLAGS="$KCPPFLAGS -DCONFIG_OPTIMIZE_INLINING"
