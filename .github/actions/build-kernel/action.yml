@@ -860,11 +860,34 @@ runs:
         
         if [ "${{ env.OP_SUSFS }}" = true ]; then
           echo "Using SUSFS branch/commit: $SUSFS_BRANCH"
+
           if ! retry_fetch_archive "https://gitlab.com/simonpunk/susfs4ksu.git" "$SUSFS_BRANCH"; then
-            echo "::error::Failed to fetch SUSFS archive after multiple attempts"
+            echo "::warning::SUSFS archive fetch failed. Falling back to git clone."
+
+            rm -rf susfs4ksu
+
+            if ! git clone --no-checkout               "https://gitlab.com/simonpunk/susfs4ksu.git"               susfs4ksu; then
+              echo "::error::Failed to clone SUSFS repository"
+              exit 1
+            fi
+
+            if ! git -C susfs4ksu checkout --detach "$SUSFS_BRANCH"; then
+              echo "::error::Failed to checkout pinned SUSFS ref: $SUSFS_BRANCH"
+              exit 1
+            fi
+          fi
+
+          SUSFS_ACTUAL_SHA="$(git -C susfs4ksu rev-parse HEAD)"
+
+          if [[ "$SUSFS_BRANCH" =~ ^[0-9a-f]{40}$ ]] &&              [ "$SUSFS_ACTUAL_SHA" != "$SUSFS_BRANCH" ]; then
+            echo "::error::SUSFS SHA mismatch"
+            echo "::error::Expected: $SUSFS_BRANCH"
+            echo "::error::Actual:   $SUSFS_ACTUAL_SHA"
             exit 1
           fi
-          echo "SUSFS_COMMIT_SHA=$SUSFS_BRANCH" >> $GITHUB_ENV
+
+          echo "Verified SUSFS commit: $SUSFS_ACTUAL_SHA"
+          echo "SUSFS_COMMIT_SHA=$SUSFS_ACTUAL_SHA" >> "$GITHUB_ENV"
         fi
         echo "✅ Dependencies cloned"
         echo "::endgroup::"
